@@ -1,0 +1,14 @@
+name: release CI/CD
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  security-events: write
+  packages: write
+
+jobs:
+  release:
+    uses: altimetrik-digital-enablement-demo-hub/platform-github-actions/.github/workflows/release.yml@v0

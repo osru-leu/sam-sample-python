@@ -1,0 +1,22 @@
+name: deploy CI/CD
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  security-events: write
+  packages: write
+  
+jobs:
+  deploy:
+    uses: altimetrik-digital-enablement-demo-hub/platform-github-actions/.github/workflows/python-deploy.yml@v0
+    with:
+      app-name: sample-python
+      tag: ghcr.io/altimetrik-digital-enablement-demo-hub/pythonapp:v0.1.0
+      chart-path: altimetrik-digital-enablement-demo-hub/platform-github-actions/sample-python
+      repository: ghcr.io/altimetrik-digital-enablement-demo-hubpythonapp
+    secrets:
+      GHCR_PAT: ${{ secrets.GHCR_PAT }}
+      GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}

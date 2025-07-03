@@ -1,0 +1,21 @@
+name: build CI/CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+  security-events: write
+  packages: write
+
+jobs:
+  build:
+    uses: altimetrik-digital-enablement-demo-hub/platform-github-actions/.github/workflows/python-build.yml@v0
+    with:
+      python-version: '3.11'
+      working-directory: '.'
+      lint-command: 'pylint app run.py test'
+      test-command: 'python -m unittest discover -s test -t .' 
