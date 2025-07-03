@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    uses: altimetrik-digital-enablement-demo-hub/platform-github-actions/.github/workflows/python-build.yml@v0
+    uses: altimetrik-digital-enablement-demo-hub/platform-github-actions/.github/workflows/python-build.yml@python
     with:
       python-version: '3.11'
       working-directory: '.'
