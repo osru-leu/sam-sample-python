@@ -3,7 +3,9 @@ from datetime import datetime
 
 LOG_PATH = Path("log.txt")
 
+
 def log_to_file(message: str) -> None:
-    """Append a timestamped message to log.txt."""
+    """Append a timestamped line to log.txt (UTF‑8)."""
     timestamp = datetime.utcnow().isoformat(timespec="seconds")
-    LOG_PATH.write_text(f"[{timestamp}] {message}\n", append=True)
+    with LOG_PATH.open("a", encoding="utf-8") as fh:
+        fh.write(f"[{timestamp}] {message}\n")
