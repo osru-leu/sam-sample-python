@@ -1,4 +1,4 @@
-name: build CI/CD
+name: build
 
 on:
   push:
