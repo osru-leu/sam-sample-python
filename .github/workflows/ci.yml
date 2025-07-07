@@ -2,7 +2,23 @@ name: build
 
 on:
   push:
-    branches: [main]
+    branches:
+      - 'main'
+      - 'feature/**'
+      - 'fix/**'
+    paths-ignore:
+      - '.github/workflows/**'
+      - 'README.md'
+      - 'docs/**'
+      - 'CHANGELOG.md'
+      - 'LICENSE'
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - edited
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
