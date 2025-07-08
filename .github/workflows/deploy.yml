@@ -2,6 +2,44 @@ name: deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      image-name:
+        description: 'Image name'
+        default: 'ghcr.io/altimetrik-digital-enablement-demo-hub/sample-python'
+        required: true
+        type: string
+      image-tag:
+        description: 'Image tag'
+        default: 'latest'
+        required: true
+        type: string
+      namespace:
+        description: 'Kubernetes namespace'
+        default: 'sample-python'
+        required: true
+        type: string
+      release-name:
+        description: 'Helm release name'
+        default: 'sample-python'
+        required: true
+        type: string
+      registry:
+        description: 'Container registry'
+        required: false
+        type: string
+        default: 'ghcr.io'
+      chart:
+        description: 'Chart path'
+        required: false
+        type: string
+        default: 'deploy/helm/sample-python'
+      target:
+        description: "Deployment platform"
+        required: false
+        default: 'local-k8s'
+        type: choice 
+        options:
+          - 'local-k8s' 
 
 permissions:
   actions: read
@@ -11,12 +49,13 @@ permissions:
   
 jobs:
   deploy:
-    uses: altimetrik-digital-enablement-demo-hub/platform-github-actions/.github/workflows/python-deploy.yml@v0
+    uses: altimetrik-digital-enablement-demo-hub/platform-github-actions/.github/workflows/python-deploy.yml@fix/python-deploy
     with:
-      app-name: sample-python
-      tag: ghcr.io/altimetrik-digital-enablement-demo-hub/pythonapp:v0.1.0
-      chart-path: altimetrik-digital-enablement-demo-hub/platform-github-actions/sample-python
-      repository: ghcr.io/altimetrik-digital-enablement-demo-hubpythonapp
-    secrets:
-      GHCR_PAT: ${{ secrets.GHCR_PAT }}
-      GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+      image-name: ${{ inputs.image-name }}
+      image-tag: ${{ inputs.image-tag }}
+      namespace: ${{ inputs.namespace }}
+      registry: ${{ inputs.registry }}
+      chart: ${{ inputs.chart }}
+      release-name: ${{ inputs.release-name }}
+      target: ${{ inputs.target }}
+    secrets: inherit
