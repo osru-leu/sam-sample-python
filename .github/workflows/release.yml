@@ -11,4 +11,4 @@ permissions:
 
 jobs:
   release:
-    uses: altimetrik-digital-enablement-demo-hub/platform-github-actions/.github/workflows/release.yml@v0
+    uses: altimetrik-digital-enablement-demo-hub/platform-github-actions/.github/workflows/release.yml@v0.0.1
