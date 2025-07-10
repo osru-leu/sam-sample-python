@@ -49,7 +49,7 @@ permissions:
   
 jobs:
   deploy:
-    uses: altimetrik-digital-enablement-demo-hub/platform-github-actions/.github/workflows/python-deploy.yml@v0.0.1
+    uses: altimetrik-digital-enablement-demo-hub/platform-github-actions/.github/workflows/python-deploy.yml@v0
     with:
       image-name: ${{ inputs.image-name }}
       image-tag: ${{ inputs.image-tag }}
