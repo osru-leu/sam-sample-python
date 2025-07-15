@@ -4,6 +4,9 @@ kind: Component
 metadata:
   name: "sample-python"
   description: This is a python application template with flask
+  tags:
+    - python
+    - flask
   annotations:
     backstage.io/techdocs-ref: dir:.
     backstage.io/kubernetes-label-selector: 'entity-id=sample-python'
@@ -17,7 +20,7 @@ metadata:
       icon: github
 spec:
   owner: guests
-  lifecycle: experimental
+  lifecycle: production
   type: service
   system: "sample-python"
 ---
@@ -34,5 +37,5 @@ metadata:
       icon: github
 spec:
   owner: guests
-  lifecycle: experimental
+  lifecycle: production
   type: service
