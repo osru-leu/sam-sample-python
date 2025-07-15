@@ -1,0 +1,38 @@
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: "sample-python"
+  description: This is a python application template with flask
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    backstage.io/kubernetes-label-selector: 'entity-id=sample-python'
+    backstage.io/kubernetes-namespace: sample-python
+    argocd/app-name: "sample-python"
+    python/version: "3.11"
+    python/framework: "flask"
+  links:
+    - url: https://github.com/altimetrik-digital-enablement-demo-hub/sample-python
+      title: Repo URL
+      icon: github
+spec:
+  owner: guests
+  lifecycle: experimental
+  type: service
+  system: "sample-python"
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: "sample-python"
+  description: A Python-based system using flask framework
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+  links:
+    - url: https://github.com/altimetrik-digital-enablement-demo-hub/idp-backstage-templates
+      title: Template Repo
+      icon: github
+spec:
+  owner: guests
+  lifecycle: experimental
+  type: service
