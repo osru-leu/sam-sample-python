@@ -14,6 +14,8 @@ metadata:
     argocd/app-name: "sample-python"
     python/version: "3.11"
     python/framework: "flask"
+    github.com/project-slug: altimetrik-digital-enablement-demo-hub/sample-python
+
   links:
     - url: https://github.com/altimetrik-digital-enablement-demo-hub/sample-python
       title: Repo URL
