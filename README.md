@@ -1,76 +1,21 @@
-# Sam Sample Python Application
+# Sample Python Application
 
-A Flask-based Python application demonstrating **multi-repository architecture** where application code lives in one repo and deployment workflows are centralized in another.
-
-## 🏢 Two-Repo Architecture
-
-This setup uses **TWO SEPARATE REPOSITORIES**:
-
-### 1. **test-flow** (Workflow Library)
-- 📦 Location: `github.com/ALTIMETRIK/test-flow`
-- 🎯 Purpose: Centralized deployment workflows and validation actions
-- 📝 Contents: Reusable composite actions, deployment logic, validation rules
-
-### 2. **sam-sample-python** (Application Code - THIS REPO)
-- 📦 Location: `github.com/ALTIMETRIK/sam-sample-python`
-- 🎯 Purpose: Flask application code
-- 📝 Contents: Python app, tests, Dockerfile, workflows that **CALL** test-flow
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  sam-sample-python (Application Repo)                  │
-│  ├── app/                  ← Your application code     │
-│  ├── test/                 ← Your tests                │
-│  └── .github/workflows/    ← Calls test-flow actions  │
-│         ↓ uses actions from ↓                          │
-└─────────────────────────────────────────────────────────┘
-                      ↓
-┌─────────────────────────────────────────────────────────┐
-│  test-flow (Workflow Library - SEPARATE REPO)          │
-│  └── .github/actions/      ← Reusable actions          │
-│      ├── deployment-lifecycle-validation/              │
-│      ├── branch-validation/                            │
-│      ├── release-check/                                │
-│      ├── deploy-to-release/                            │
-│      └── promotion actions...                          │
-└─────────────────────────────────────────────────────────┘
-```
-
-## 🔗 How It Works
-
-**sam-sample-python** calls **reusable workflows** from **test-flow**:
-
-```yaml
-# In sam-sample-python/.github/workflows/deploy.yml (SIMPLE!)
-
-jobs:
-  deploy:
-    uses: osru-leu/test-flow/.github/workflows/deploy.yml@main  # ← Calls reusable workflow
-    with:
-      environment: dev-int
-      app_name: 'sam-sample-python'
-      python_version: '3.11'
-      working_directory: '.'
-```
-
-**Key Point:** sam-sample-python has simple caller workflows that reference test-flow's reusable workflows!
+A Flask-based Python application demonstrating enterprise deployment workflows using the `test-flow` repository for deployment validation and orchestration.
 
 ## 📋 Quick Links
 
-- **[Architecture Guide](ARCHITECTURE.md)** - Two-repo architecture explained
-- **[Deployment Guide](DEPLOYMENT.md)** - Complete deployment instructions
-- **[Flow Diagrams](FLOW-DIAGRAM.md)** - Visual architecture diagrams
-- **[Integration Summary](INTEGRATION-SUMMARY.md)** - How the two repos connect
-- **[test-flow Repository](https://github.com/ALTIMETRIK/test-flow)** - Workflow library (separate repo)
+- **[Deployment Guide](DEPLOYMENT.md)** - Complete deployment instructions and scenarios
+- **[Flow Diagrams](FLOW-DIAGRAM.md)** - Visual flow diagrams matching the original design
+- **[Test-Flow Repository](../test-flow/)** - Reusable deployment workflows and actions
 
 ## 🎯 What Makes This Special
 
-This application demonstrates **enterprise-grade deployment architecture**:
-- ✅ **Separation of Concerns**: App code separate from deployment logic
-- ✅ **Reusable Workflows**: test-flow actions used by multiple apps
-- ✅ **Multi-stage Validation**: Deployment lifecycle → Branch → Release checks
-- ✅ **Approval Gates**: Human oversight for critical promotions
-- ✅ **Centralized Governance**: One place to update deployment rules
+This application demonstrates:
+- ✅ **Reusable deployment workflows** from test-flow repository
+- ✅ **Multi-stage validation gates** before deployment (matches the flow diagram)
+- ✅ **Approval-based promotions** between environments
+- ✅ **Automated testing** and quality checks
+- ✅ **Environment-specific configurations**
 
 ## 🚀 Quick Start
 
