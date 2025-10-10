@@ -34,7 +34,7 @@ permissions:
 
 jobs:
   deploy:
-    uses: osru-leu/test-flow/.github/workflows/deploy.yml@main
+    uses: osru-leu/test-flow/.github/workflows/deploy.yml@feature/skeleton
     with:
       environment: ${{ github.event_name == 'push' && 'dev-int' || inputs.environment }}
       release_type: ${{ inputs.release_type || 'standard' }}
