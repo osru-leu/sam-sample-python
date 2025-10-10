@@ -1,0 +1,185 @@
+name: Promote Sample Python App
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: 'Release ID to promote'
+        required: true
+        type: string
+      source_environment:
+        description: 'Source environment'
+        required: true
+        type: choice
+        options:
+          - dev-int
+          - future
+          - active
+          - uat
+          - staging
+      target_environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - future
+          - active
+          - uat
+          - staging
+          - prod
+
+jobs:
+  validate-promotion:
+    name: Validate Promotion Request
+    runs-on: ubuntu-latest
+    outputs:
+      is_valid: ${{ steps.validate.outputs.is_valid }}
+    steps:
+      - name: Checkout test-flow repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/test-flow
+          path: test-flow
+
+      - name: Checkout sample-python
+        uses: actions/checkout@v4
+        with:
+          path: sample-python
+
+      - name: Validate Promotion Eligibility
+        id: validate
+        uses: ./test-flow/.github/actions/promotion-validation
+        with:
+          release_id: ${{ inputs.release_id }}
+          source_environment: ${{ inputs.source_environment }}
+          target_environment: ${{ inputs.target_environment }}
+
+      - name: Check Validation Result
+        if: steps.validate.outputs.is_valid != 'true'
+        run: |
+          echo "::error::Promotion validation failed"
+          exit 1
+
+  approval-gate:
+    name: Approval Required for Promotion
+    runs-on: ubuntu-latest
+    needs: validate-promotion
+    environment:
+      name: promotion-approval-${{ inputs.target_environment }}
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Waiting for Approval
+        run: |
+          echo "## 🔐 Approval Required" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Promotion Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Application: Sample Python App" >> $GITHUB_STEP_SUMMARY
+          echo "- Release ID: ${{ inputs.release_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- From: ${{ inputs.source_environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- To: ${{ inputs.target_environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Requested by: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⏳ Waiting for approval from authorized reviewers..." >> $GITHUB_STEP_SUMMARY
+
+      - name: Approval Granted
+        run: |
+          echo "✅ Approval granted for promotion to ${{ inputs.target_environment }}"
+
+  pre-promotion-checks:
+    name: Pre-Promotion Checks
+    runs-on: ubuntu-latest
+    needs: approval-gate
+    outputs:
+      checks_passed: ${{ steps.checks.outputs.passed }}
+    steps:
+      - name: Checkout test-flow repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/test-flow
+          path: test-flow
+
+      - name: Checkout sample-python
+        uses: actions/checkout@v4
+        with:
+          path: sample-python
+
+      - name: Run Pre-Promotion Checks
+        id: checks
+        uses: ./test-flow/.github/actions/pre-promotion-checks
+        with:
+          release_id: ${{ inputs.release_id }}
+          source_environment: ${{ inputs.source_environment }}
+          target_environment: ${{ inputs.target_environment }}
+
+      - name: Verify Checks Passed
+        if: steps.checks.outputs.passed != 'true'
+        run: |
+          echo "::error::Pre-promotion checks failed"
+          exit 1
+
+  promote-release:
+    name: Execute Promotion
+    runs-on: ubuntu-latest
+    needs: pre-promotion-checks
+    environment:
+      name: ${{ inputs.target_environment }}
+    steps:
+      - name: Checkout test-flow repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/test-flow
+          path: test-flow
+
+      - name: Checkout sample-python
+        uses: actions/checkout@v4
+        with:
+          path: sample-python
+
+      - name: Execute Release Promotion
+        id: promote
+        uses: ./test-flow/.github/actions/execute-promotion
+        with:
+          release_id: ${{ inputs.release_id }}
+          source_environment: ${{ inputs.source_environment }}
+          target_environment: ${{ inputs.target_environment }}
+
+      - name: Promotion Summary
+        run: |
+          echo "## 🚀 Promotion Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Application:** Sample Python App" >> $GITHUB_STEP_SUMMARY
+          echo "**Details:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Release ID: ${{ inputs.release_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Promoted From: ${{ inputs.source_environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Promoted To: ${{ inputs.target_environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Approved by: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Deployment URL: ${{ steps.promote.outputs.deployment_url }}" >> $GITHUB_STEP_SUMMARY
+
+  post-promotion-verification:
+    name: Post-Promotion Verification
+    runs-on: ubuntu-latest
+    needs: promote-release
+    steps:
+      - name: Checkout test-flow repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/test-flow
+          path: test-flow
+
+      - name: Checkout sample-python
+        uses: actions/checkout@v4
+        with:
+          path: sample-python
+
+      - name: Run Post-Promotion Tests
+        uses: ./test-flow/.github/actions/post-promotion-verification
+        with:
+          release_id: ${{ inputs.release_id }}
+          environment: ${{ inputs.target_environment }}
+
+      - name: Success Notification
+        run: |
+          echo "📧 Sample Python App successfully promoted!"
+          echo "Environment: ${{ inputs.target_environment }}"
+          echo "Release ID: ${{ inputs.release_id }}"
+
