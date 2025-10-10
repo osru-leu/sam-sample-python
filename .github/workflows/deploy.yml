@@ -1,0 +1,44 @@
+name: Deploy sam-sample-python
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev-int
+          - future
+          - active
+          - uat
+          - staging
+          - prod
+      release_type:
+        description: 'Release type'
+        required: false
+        type: choice
+        options:
+          - future
+          - active
+          - standard
+  push:
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: write
+  security-events: write
+  packages: write
+
+jobs:
+  deploy:
+    uses: osru-leu/test-flow/.github/workflows/deploy.yml@main
+    with:
+      environment: ${{ github.event_name == 'push' && 'dev-int' || inputs.environment }}
+      release_type: ${{ inputs.release_type || 'standard' }}
+      app_name: 'sam-sample-python'
+      python_version: '3.11'
+      working_directory: '.'
+

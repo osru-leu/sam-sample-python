@@ -38,30 +38,22 @@ This setup uses **TWO SEPARATE REPOSITORIES**:
 
 ## 🔗 How It Works
 
+**sam-sample-python** calls **reusable workflows** from **test-flow**:
+
 ```yaml
-# In sam-sample-python/.github/workflows/deploy-to-environments.yml
+# In sam-sample-python/.github/workflows/deploy.yml (SIMPLE!)
 
-steps:
-  # 1. Get test-flow repository (EXTERNAL REPO)
-  - name: Checkout test-flow
-    uses: actions/checkout@v4
-    with:
-      repository: ALTIMETRIK/test-flow  # ← Different repo!
-      path: test-flow
-
-  # 2. Get sam-sample-python (THIS REPO)
-  - uses: actions/checkout@v4
-    with:
-      path: sam-sample-python
-
-  # 3. Use test-flow validation action
-  - uses: ./test-flow/.github/actions/deployment-lifecycle-validation
+jobs:
+  deploy:
+    uses: osru-leu/test-flow/.github/workflows/deploy.yml@main  # ← Calls reusable workflow
     with:
       environment: dev-int
-      branch: main
+      app_name: 'sam-sample-python'
+      python_version: '3.11'
+      working_directory: '.'
 ```
 
-**Key Point:** sam-sample-python **calls** test-flow actions, they are **separate repositories**!
+**Key Point:** sam-sample-python has simple caller workflows that reference test-flow's reusable workflows!
 
 ## 📋 Quick Links
 
