@@ -1,0 +1,51 @@
+name: Deploy sam-sample-python
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev-int
+          - future
+          - active
+          - uat
+          - staging
+          - prod
+      release_type:
+        description: 'Release type'
+        required: false
+        type: choice
+        options:
+          - future
+          - active
+          - standard
+  push:
+    branches:
+      - main
+      - feature/**     # Auto-deploy feature branches to dev-int
+
+permissions:
+  actions: read
+  contents: write
+  security-events: write
+  packages: write
+
+jobs:
+  deploy:
+    uses: osru-leu/test-flow/.github/workflows/deploy.yml@feature/skeleton
+    with:
+      # Feature branches auto-deploy to dev-int
+      # Main branch auto-deploys to dev-int
+      # Manual dispatch uses selected environment
+      environment: ${{ 
+        github.event_name == 'push' && 'dev-int' || 
+        inputs.environment 
+      }}
+      release_type: ${{ inputs.release_type || 'standard' }}
+      app_name: 'sam-sample-python'
+      python_version: '3.11'
+      working_directory: '.'
+

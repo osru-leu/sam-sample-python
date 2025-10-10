@@ -1,0 +1,45 @@
+name: Promote sam-sample-python
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: 'Release ID to promote'
+        required: true
+        type: string
+      source_environment:
+        description: 'Source environment'
+        required: true
+        type: choice
+        options:
+          - dev-int
+          - future
+          - active
+          - uat
+          - staging
+      target_environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - future
+          - active
+          - uat
+          - staging
+          - prod
+
+permissions:
+  actions: read
+  contents: write
+  security-events: write
+  packages: write
+
+jobs:
+  promote:
+    uses: osru-leu/test-flow/.github/workflows/promote.yml@main
+    with:
+      release_id: ${{ inputs.release_id }}
+      source_environment: ${{ inputs.source_environment }}
+      target_environment: ${{ inputs.target_environment }}
+      app_name: 'sam-sample-python'
+
