@@ -1,0 +1,238 @@
+name: create-rel-branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_mode:
+        description: "How to create the release branch"
+        required: true
+        type: choice
+        options:
+          - "Create next release branch automatically"
+          - "Specify Major.Minor version manually"
+        default: "Create next release branch automatically"
+      major_version:
+        description: "Major version number (required if specifying manually)"
+        required: false
+        type: string
+        default: ""
+      minor_version:
+        description: "Minor version number (required if specifying manually)"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  prepare_release_branch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      branch_name: ${{ steps.calc_branch_version.outputs.branch_name }}
+      major: ${{ steps.calc_branch_version.outputs.major }}
+      minor: ${{ steps.calc_branch_version.outputs.minor }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch Latest Git Tags (SemVer aware)
+        id: latest_tags
+        run: |
+          # Get all version tags and sort them (format: v<MAJOR>.<MINOR>.<PATCH>)
+          all_tags=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' | sort -V)
+          if [ -z "$all_tags" ]; then
+            echo "No version tags found, will start with release/1.0.x"
+            echo "has_tags=false" >> $GITHUB_OUTPUT
+            echo "latest_tag=" >> $GITHUB_OUTPUT
+            echo "latest_major=0" >> $GITHUB_OUTPUT
+            echo "latest_minor=0" >> $GITHUB_OUTPUT
+            echo "latest_patch=0" >> $GITHUB_OUTPUT
+            
+            # Output tag summary for no tags case
+            echo "## 📋 Git Tag Information" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Latest Tag Found:** *No version tags found in repository*" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version Calculation:** Starting with first release version \`1.0\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            # Get the latest tag
+            latest_tag=$(echo "$all_tags" | tail -n1)
+            echo "Latest tag found: $latest_tag"
+            
+            # Extract major.minor.patch from latest tag (remove 'v' prefix)
+            base_version=${latest_tag#v}
+            IFS='.' read -r major minor patch <<< "$base_version"
+            
+            echo "has_tags=true" >> $GITHUB_OUTPUT
+            echo "latest_tag=$latest_tag" >> $GITHUB_OUTPUT
+            echo "latest_major=$major" >> $GITHUB_OUTPUT
+            echo "latest_minor=$minor" >> $GITHUB_OUTPUT
+            echo "latest_patch=$patch" >> $GITHUB_OUTPUT
+            
+            # Output tag summary for existing tags case
+            echo "## 📋 Git Tag Information" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Latest Tag Found:** \`$latest_tag\`" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version Calculation:** Will increment minor version from \`$major.$minor\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Calculate Branch Version
+        id: calc_branch_version
+        run: |
+          create_mode="${{ github.event.inputs.create_mode }}"
+          has_tags="${{ steps.latest_tags.outputs.has_tags }}"
+
+          if [ "$create_mode" = "Specify Major.Minor version manually" ]; then
+            major="${{ github.event.inputs.major_version }}"
+            minor="${{ github.event.inputs.minor_version }}"
+            
+            # Validate inputs
+            if [ -z "$major" ] || [ -z "$minor" ]; then
+              echo "Error: Both major and minor version must be provided when specifying manually"
+              exit 1
+            fi
+            
+            # Validate that they are numbers
+            if ! [[ "$major" =~ ^[0-9]+$ ]] || ! [[ "$minor" =~ ^[0-9]+$ ]]; then
+              echo "Error: Major and minor versions must be numeric"
+              exit 1
+            fi
+            
+            echo "Using manually specified version: $major.$minor"
+          else
+            # Auto-calculate next version
+            if [ "$has_tags" = "false" ]; then
+              # No tags exist, start with 1.0
+              major=1
+              minor=0
+              echo "No tags found, starting with first release: $major.$minor"
+            else
+              # Tags exist, increment minor version
+              latest_major="${{ steps.latest_tags.outputs.latest_major }}"
+              latest_minor="${{ steps.latest_tags.outputs.latest_minor }}"
+              
+              major=$latest_major
+              minor=$((latest_minor + 1))
+              
+              echo "Auto-calculated next version: $major.$minor"
+            fi
+          fi
+
+          branch_name="release/$major.$minor.x"
+          echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+          echo "major=$major" >> $GITHUB_OUTPUT
+          echo "minor=$minor" >> $GITHUB_OUTPUT
+
+      - name: Check if Branch Already Exists
+        id: check_branch
+        run: |
+          branch_name="${{ steps.calc_branch_version.outputs.branch_name }}"
+
+          # Check if branch exists locally or remotely
+          if git show-ref --verify --quiet refs/heads/$branch_name || git show-ref --verify --quiet refs/remotes/origin/$branch_name; then
+            echo "branch_exists=true" >> $GITHUB_OUTPUT
+            echo "Branch $branch_name already exists!"
+            
+            # Output error summary
+            echo "❌ **ERROR: Branch \`$branch_name\` already exists!**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Please choose a different version or delete the existing branch first." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "branch_exists=false" >> $GITHUB_OUTPUT
+            echo "Branch $branch_name does not exist, safe to create"
+          fi
+
+      - name: Release Branch Info
+        run: |
+          branch_name="${{ steps.calc_branch_version.outputs.branch_name }}"
+          major="${{ steps.calc_branch_version.outputs.major }}"
+          minor="${{ steps.calc_branch_version.outputs.minor }}"
+          create_mode="${{ github.event.inputs.create_mode }}"
+          branch_exists="${{ steps.check_branch.outputs.branch_exists }}"
+          actor="${{ github.actor }}"
+          has_tags="${{ steps.latest_tags.outputs.has_tags }}"
+          latest_major="${{ steps.latest_tags.outputs.latest_major }}"
+          latest_minor="${{ steps.latest_tags.outputs.latest_minor }}"
+          latest_patch="${{ steps.latest_tags.outputs.latest_patch }}"
+
+          echo "# Release Branch Information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch Name:** \`$branch_name\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Major Version:** \`$major\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Minor Version:** \`$minor\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Creation Mode:** \`$create_mode\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Triggered By:** \`$actor\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Add final version calculation details
+          if [ "$has_tags" = "true" ]; then
+            echo "- **Final Version:** Incremented minor version from \`$latest_major.$latest_minor\` to \`$major.$minor\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Final Version:** Starting with first release version \`$major.$minor\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "✅ **Branch \`$branch_name\` is available for creation**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **APPROVAL REQUIRED**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The next job will require approval from the \`branch-creation-approval\` environment." >> $GITHUB_STEP_SUMMARY
+          echo "Please review the details above and approve when prompted." >> $GITHUB_STEP_SUMMARY
+
+  create_release_branch:
+    runs-on: ubuntu-latest
+    needs: prepare_release_branch
+    environment: branch-creation-approval
+    outputs:
+      branch_name: ${{ steps.create.outputs.branch_name }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create Release Branch
+        id: create
+        run: |
+          branch_name="${{ needs.prepare_release_branch.outputs.branch_name }}"
+
+          # Configure git
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+          # Create and switch to the new branch
+          git checkout -b $branch_name
+
+          # Set up remote URL with token
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+
+          # Push the new branch
+          git push -u origin $branch_name
+
+          echo "✅ Successfully created and pushed branch: $branch_name"
+          echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+
+      - name: Final Summary
+        run: |
+          branch_name="${{ needs.prepare_release_branch.outputs.branch_name }}"
+          major="${{ needs.prepare_release_branch.outputs.major }}"
+          minor="${{ needs.prepare_release_branch.outputs.minor }}"
+          branch_url="https://github.com/${{ github.repository }}/tree/$branch_name"
+
+          echo "# ✅ Release Branch Created Successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`$branch_name\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`$major.$minor\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**[View Branch]($branch_url)**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🚀 **The rel-build workflow will automatically trigger for this branch!**" >> $GITHUB_STEP_SUMMARY

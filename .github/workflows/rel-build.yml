@@ -1,0 +1,313 @@
+name: rel-build
+
+on:
+    push:
+        branches:
+            - "release/**"
+        paths-ignore:
+            - ".github/**"
+        tags-ignore:
+            - "**"
+    workflow_dispatch:
+        inputs:
+            release_branch:
+                description: "Release branch to build (e.g., release/1.2.x)"
+                required: true
+                type: string
+                default: ""
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        outputs:
+            version: ${{ steps.vars.outputs.version }}
+            tag_version: ${{ steps.vars.outputs.tag_version }}
+            commit: ${{ steps.vars.outputs.commit }}
+            date: ${{ steps.vars.outputs.date }}
+            branch: ${{ steps.vars.outputs.branch }}
+
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  ref: ${{ github.event.inputs.release_branch || github.ref }}
+            - name: Calculate Next Tag Version
+              id: calc_tag
+              run: |
+                  # Get branch name based on trigger type
+                  if [ -n "${{ github.event.inputs.release_branch }}" ]; then
+                      # Manual trigger - use the input branch
+                      branch_name="${{ github.event.inputs.release_branch }}"
+                      echo "Manual trigger: Building branch $branch_name"
+                  else
+                      # Automatic trigger - extract from GITHUB_REF
+                      branch_name=${GITHUB_REF#refs/heads/}
+                      echo "Automatic trigger: Building branch $branch_name"
+                  fi
+
+
+                    # Extract major.minor from branch name (release/1.2.x -> 1.2)
+                    major_minor=$(echo $branch_name | sed 's/release\/\([0-9]*\.[0-9]*\)\.x/\1/')
+
+                    # Validate branch name format
+                    if [[ ! $branch_name =~ ^release/[0-9]+\.[0-9]+\.x$ ]]; then
+                        echo "Error: Invalid release branch format. Expected: release/X.Y.x (e.g., release/1.2.x)"
+                        echo "Provided: $branch_name"
+                        exit 1
+                    fi
+
+                    # Find latest patch version for this major.minor
+                    latest_patch_tag=$(git tag --list "v${major_minor}.*" | sort -V | tail -n1)
+
+                    if [ -z "$latest_patch_tag" ]; then
+                        # No existing tags for this major.minor, start with .0
+                        patch=0
+                    else
+                        # Extract patch number from latest tag (v1.2.5 -> 5)
+                        patch=$(echo $latest_patch_tag | sed 's/v[0-9]*\.[0-9]*\.\([0-9]*\)/\1/')
+                        patch=$((patch + 1))
+                    fi
+
+                    # Create full version tag
+                    new_tag="v${major_minor}.${patch}"
+
+                    echo "major_minor=$major_minor" >> $GITHUB_OUTPUT
+                    echo "patch=$patch" >> $GITHUB_OUTPUT
+                    echo "new_tag=$new_tag" >> $GITHUB_OUTPUT
+                    echo "latest_patch_tag=$latest_patch_tag" >> $GITHUB_OUTPUT
+                    echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+
+                    echo "Latest patch tag for $major_minor: $latest_patch_tag"
+                    
+                    echo "Next tag will be: $new_tag"
+
+            - name: Set Version Info
+              id: vars
+              run: |
+                  # Use the calculated tag for version info
+                  new_tag="${{ steps.calc_tag.outputs.new_tag }}"
+                  major_minor="${{ steps.calc_tag.outputs.major_minor }}"
+                  patch="${{ steps.calc_tag.outputs.patch }}"
+
+                  echo "version=${major_minor}.${patch}" >> $GITHUB_OUTPUT
+                  echo "tag_version=$new_tag" >> $GITHUB_OUTPUT
+                  echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+                  echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+                  echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+
+            - name: Compile
+              run: |
+                  version="${{ steps.vars.outputs.version }}"
+                  echo "Compiling application version $version..."
+
+                  # Add your actual compile commands here
+                  # For example:
+                  # make build
+                  # go build -ldflags "-X main.version=$version" -o app ./cmd/app
+                  # npm run build
+                  # mvn clean package
+
+                  echo "✅ Compilation successful for version $version"
+
+            - name: Create and Push Git Tag
+              run: |
+                  new_tag="${{ steps.calc_tag.outputs.new_tag }}"
+                  latest_patch_tag="${{ steps.calc_tag.outputs.latest_patch_tag }}"
+
+                  # Configure git
+                  git config user.name "${{ github.actor }}"
+                  git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+                  # Create the tag
+                  git tag -a "$new_tag" -m "Release $new_tag"
+
+                  # Set up remote URL with token
+                  git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+
+                  # Push the tag
+                  git push origin "$new_tag"
+
+                  echo "✅ Successfully created and pushed tag: $new_tag"
+                  if [ -n "$latest_patch_tag" ]; then
+                      echo "Previous tag was: $latest_patch_tag"
+                  else
+                      echo "This is the first tag for this release branch"
+                  fi
+
+                  # Add build summary
+                  echo "## 📦 Release Build Summary" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  if [ -n "${{ github.event.inputs.release_branch }}" ]; then
+                      echo "- **Trigger:** 🔧 Manual (Branch: \`${{ github.event.inputs.release_branch }}\`)" >> $GITHUB_STEP_SUMMARY
+                  else
+                      echo "- **Trigger:** 🚀 Automatic Push" >> $GITHUB_STEP_SUMMARY
+                  fi
+                  echo "- **Version:** \`${{ steps.vars.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Tag:** \`$new_tag\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Branch:** \`${{ steps.calc_tag.outputs.branch_name }}\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Commit:** \`${{ steps.vars.outputs.commit }}\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Build Date:** \`${{ steps.vars.outputs.date }}\`" >> $GITHUB_STEP_SUMMARY
+                  if [ -n "$latest_patch_tag" ]; then
+                      echo "- **Previous Tag:** \`$latest_patch_tag\`" >> $GITHUB_STEP_SUMMARY
+                  else
+                      echo "- **Previous Tag:** *First release for this branch*" >> $GITHUB_STEP_SUMMARY
+                  fi
+                  echo "- **Status:** ✅ Build and Tag Complete" >> $GITHUB_STEP_SUMMARY
+
+    deploy-future:
+        runs-on: ubuntu-latest
+        needs: build
+        if: false # Optional deployment - set to true to enable
+        environment: future
+        steps:
+            - name: Deploy to FUTURE
+              run: |
+                  tag_version="${{ needs.build.outputs.tag_version }}"
+                  version="${{ needs.build.outputs.version }}"
+                  commit="${{ needs.build.outputs.commit }}"
+                  branch="${{ needs.build.outputs.branch }}"
+
+                  echo "Deploying version $version (tag: $tag_version) to FUTURE environment"
+
+                  # Set environment variables for tracking
+                  echo "CURRENT_VERSION=$version" >> $GITHUB_ENV
+                  echo "CURRENT_TAG=$tag_version" >> $GITHUB_ENV
+                  echo "CURRENT_COMMIT=$commit" >> $GITHUB_ENV
+                  echo "CURRENT_BRANCH=$branch" >> $GITHUB_ENV
+                  echo "DEPLOYMENT_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+
+                  # Add to step summary
+                  echo "## 🚀 FUTURE Deployment" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Version:** \`$version\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Tag:** \`$tag_version\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Branch:** \`$branch\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Commit:** \`$commit\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Status:** ✅ Deployed Successfully" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Environment Variables Set:** ✅" >> $GITHUB_STEP_SUMMARY
+
+    deploy-active:
+        runs-on: ubuntu-latest
+        needs: build
+        environment: active
+        steps:
+            - name: Deploy to ACTIVE
+              run: |
+                  tag_version="${{ needs.build.outputs.tag_version }}"
+                  version="${{ needs.build.outputs.version }}"
+                  commit="${{ needs.build.outputs.commit }}"
+                  branch="${{ needs.build.outputs.branch }}"
+
+                  echo "Deploying version $version (tag: $tag_version) to ACTIVE environment"
+
+                  # Set environment variables for tracking
+                  echo "CURRENT_VERSION=$version" >> $GITHUB_ENV
+                  echo "CURRENT_TAG=$tag_version" >> $GITHUB_ENV
+                  echo "CURRENT_COMMIT=$commit" >> $GITHUB_ENV
+                  echo "CURRENT_BRANCH=$branch" >> $GITHUB_ENV
+                  echo "DEPLOYMENT_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+
+                  # Add to step summary
+                  echo "## 🎯 ACTIVE Deployment" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Version:** \`$version\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Tag:** \`$tag_version\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Branch:** \`$branch\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Commit:** \`$commit\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Status:** ✅ Deployed Successfully" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Environment Variables Set:** ✅" >> $GITHUB_STEP_SUMMARY
+
+    deploy-partner:
+        runs-on: ubuntu-latest
+        needs: [build, deploy-active]
+        if: false # Optional deployment - set to true to enable
+        environment: partner
+        steps:
+            - name: Deploy to PARTNER
+              run: |
+                  tag_version="${{ needs.build.outputs.tag_version }}"
+                  version="${{ needs.build.outputs.version }}"
+                  commit="${{ needs.build.outputs.commit }}"
+                  branch="${{ needs.build.outputs.branch }}"
+
+                  echo "Deploying version $version (tag: $tag_version) to PARTNER environment"
+
+                  # Set environment variables for tracking
+                  echo "CURRENT_VERSION=$version" >> $GITHUB_ENV
+                  echo "CURRENT_TAG=$tag_version" >> $GITHUB_ENV
+                  echo "CURRENT_COMMIT=$commit" >> $GITHUB_ENV
+                  echo "CURRENT_BRANCH=$branch" >> $GITHUB_ENV
+                  echo "DEPLOYMENT_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+
+                  # Add to step summary
+                  echo "## 🤝 PARTNER Deployment" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Version:** \`$version\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Tag:** \`$tag_version\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Branch:** \`$branch\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Commit:** \`$commit\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Status:** ✅ Deployed Successfully" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Environment Variables Set:** ✅" >> $GITHUB_STEP_SUMMARY
+
+    deploy-staging:
+        runs-on: ubuntu-latest
+        needs: [build, deploy-active]
+        environment: staging
+        steps:
+            - name: Deploy to STAGING
+              run: |
+                  tag_version="${{ needs.build.outputs.tag_version }}"
+                  version="${{ needs.build.outputs.version }}"
+                  commit="${{ needs.build.outputs.commit }}"
+                  branch="${{ needs.build.outputs.branch }}"
+
+                  echo "Deploying version $version (tag: $tag_version) to STAGING environment"
+
+                  # Set environment variables for tracking
+                  echo "CURRENT_VERSION=$version" >> $GITHUB_ENV
+                  echo "CURRENT_TAG=$tag_version" >> $GITHUB_ENV
+                  echo "CURRENT_COMMIT=$commit" >> $GITHUB_ENV
+                  echo "CURRENT_BRANCH=$branch" >> $GITHUB_ENV
+                  echo "DEPLOYMENT_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+
+                  # Add to step summary
+                  echo "## 🧪 STAGING Deployment" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Version:** \`$version\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Tag:** \`$tag_version\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Branch:** \`$branch\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Commit:** \`$commit\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Status:** ✅ Deployed Successfully" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Environment Variables Set:** ✅" >> $GITHUB_STEP_SUMMARY
+
+    deploy-prod:
+        runs-on: ubuntu-latest
+        needs: [build, deploy-active]
+        environment: prod
+        steps:
+            - name: Deploy to PROD
+              run: |
+                  tag_version="${{ needs.build.outputs.tag_version }}"
+                  version="${{ needs.build.outputs.version }}"
+                  commit="${{ needs.build.outputs.commit }}"
+                  branch="${{ needs.build.outputs.branch }}"
+
+                  echo "Deploying version $version (tag: $tag_version) to PROD environment"
+
+                  # Set environment variables for tracking
+                  echo "CURRENT_VERSION=$version" >> $GITHUB_ENV
+                  echo "CURRENT_TAG=$tag_version" >> $GITHUB_ENV
+                  echo "CURRENT_COMMIT=$commit" >> $GITHUB_ENV
+                  echo "CURRENT_BRANCH=$branch" >> $GITHUB_ENV
+                  echo "DEPLOYMENT_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+
+                  # Add to step summary
+                  echo "## 🚀 PROD Deployment" >> $GITHUB_STEP_SUMMARY
+                  echo "" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Version:** \`$version\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Tag:** \`$tag_version\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Branch:** \`$branch\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Commit:** \`$commit\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Status:** ✅ Deployed Successfully" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Environment Variables Set:** ✅" >> $GITHUB_STEP_SUMMARY

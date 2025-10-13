@@ -1,0 +1,32 @@
+name: dev-build
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - ".github/**"
+    tags-ignore:
+      - "**"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Version Info
+        id: vars
+        run: |
+          echo "version=main-$(date +%Y%m%d).${{ github.run_number }}" >> $GITHUB_OUTPUT
+          echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+  deploy-dev-int:
+    runs-on: ubuntu-latest
+    needs: build
+    environment: dev-int
+    steps:
+      - name: Deploy to DEV-INT
+        run: echo "Deploying to DEV-INT environment"
